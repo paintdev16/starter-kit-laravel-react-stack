@@ -1,6 +1,4 @@
-import { router, usePage } from '@inertiajs/react';
-import { configureEcho, echo } from '@laravel/echo-react';
-import { useEffect } from 'react';
+import { usePage } from '@inertiajs/react';
 import {
     CircleHelp,
     ChevronsUpDown,
@@ -10,9 +8,8 @@ import {
     MoreHorizontal,
     Settings2,
     UsersRound,
-    Bell,
     ClipboardList,
-    Files,
+    HeartPulse,
 } from 'lucide-react';
 import AppLogoIcon from '@/components/app-logo-icon';
 import { NavMain } from '@/components/nav-main';
@@ -37,9 +34,8 @@ import {
 import { dashboard } from '@/routes';
 import { index as accessControl } from '@/routes/access-control';
 import { edit as editProfile } from '@/routes/profile';
-import { index as notificationsIndex } from '@/routes/notifications';
 import { index as auditIndex } from '@/routes/advanced/audit';
-import { index as filesIndex } from '@/routes/advanced/files';
+import { index as healthIndex } from '@/routes/advanced/health';
 import { index as appSettingsIndex } from '@/routes/advanced/settings';
 import {
     dropdownMenuContentStyles,
@@ -47,7 +43,6 @@ import {
     dropdownMenuLabelStyles,
 } from '@/lib/dropdown-menu-styles';
 import type { Auth, NavItem } from '@/types';
-import { toast } from '@/components/ui/toast';
 
 const mainNavItems: NavItem[] = [
     {
@@ -70,100 +65,10 @@ const bottomNavItems: NavItem[] = [
     },
 ];
 
-type LoginAlert = {
-    id: string;
-    title?: string;
-    message?: string;
-};
-
-const shownLoginToastIds = new Set<string>();
-
-function showLoginToast(
-    userId: number,
-    alert: Pick<LoginAlert, 'id' | 'title' | 'message'>,
-) {
-    const storageKey = `login-alert-toasts-${userId}`;
-    const seenKey = `${userId}:${alert.id}`;
-    if (shownLoginToastIds.has(seenKey)) return;
-
-    let shownIds: string[] = [];
-
-    try {
-        const stored = JSON.parse(sessionStorage.getItem(storageKey) ?? '[]');
-        shownIds = Array.isArray(stored) ? stored : [];
-    } catch {
-        shownIds = [];
-    }
-
-    shownLoginToastIds.add(seenKey);
-    if (shownIds.includes(alert.id)) return;
-
-    toast.add({
-        title: alert.title ?? 'Nuevo inicio de sesión',
-        description: alert.message,
-    });
-    try {
-        sessionStorage.setItem(
-            storageKey,
-            JSON.stringify([...shownIds.slice(-49), alert.id]),
-        );
-    } catch {
-        // The in-memory set still prevents repeated toasts in this tab.
-    }
-}
-
-function RealtimeNotifications({ userId }: { userId: number }) {
-    useEffect(() => {
-        const connection = echo();
-        const channelName = `App.Models.User.${userId}`;
-
-        connection
-            .private(channelName)
-            .notification(
-                (notification: {
-                    id?: string;
-                    type?: string;
-                    title?: string;
-                    message?: string;
-                }) => {
-                    if (
-                        notification.type ===
-                            'App\\Notifications\\UserLoggedInNotification' &&
-                        notification.id
-                    ) {
-                        showLoginToast(userId, {
-                            id: notification.id,
-                            title: notification.title,
-                            message: notification.message,
-                        });
-                    } else {
-                        toast.add({
-                            title: notification.title ?? 'Nueva notificación',
-                            description: notification.message,
-                        });
-                    }
-                    router.reload({
-                        only: ['unreadNotifications'],
-                    });
-                },
-            );
-
-        return () => {
-            connection.leave(channelName);
-            connection.disconnect();
-            configureEcho({ broadcaster: 'reverb' });
-        };
-    }, [userId]);
-
-    return null;
-}
-
 export function AppSidebar() {
-    const { name, auth, unreadNotifications, runtimeFeatures } = usePage<{
+    const { name, auth } = usePage<{
         name: string;
         auth: Auth;
-        unreadNotifications: number;
-        runtimeFeatures: { reverbEnabled: boolean };
     }>().props;
     const visibleMainNavItems = auth.can.viewUsers
         ? [
@@ -178,8 +83,8 @@ export function AppSidebar() {
 
     const advancedItems: NavItem[] = auth.can.manageAdvanced
         ? [
-              { title: 'Archivos', href: filesIndex(), icon: Files },
               { title: 'Auditoría', href: auditIndex(), icon: ClipboardList },
+              { title: 'Salud del sistema', href: healthIndex(), icon: HeartPulse },
               {
                   title: 'Configuración general',
                   href: appSettingsIndex(),
@@ -187,17 +92,7 @@ export function AppSidebar() {
               },
           ]
         : [];
-    const navigationItems = [
-        ...visibleMainNavItems,
-        {
-            title: unreadNotifications
-                ? `Notificaciones (${unreadNotifications})`
-                : 'Notificaciones',
-            href: notificationsIndex(),
-            icon: Bell,
-        },
-        ...advancedItems,
-    ];
+    const navigationItems = [...visibleMainNavItems, ...advancedItems];
 
     return (
         <Sidebar
@@ -205,9 +100,6 @@ export function AppSidebar() {
             variant="floating"
             className="[&_[data-slot=sidebar-container]]:pt-2 [&_[data-slot=sidebar-container]]:pr-0 [&_[data-slot=sidebar-inner]]:rounded-xl [&_[data-slot=sidebar-inner]]:border [&_[data-slot=sidebar-inner]]:border-white/60 [&_[data-slot=sidebar-inner]]:shadow-xl [&_[data-slot=sidebar-inner]]:shadow-sidebar-primary/15 dark:[&_[data-slot=sidebar-inner]]:border-sidebar-border dark:[&_[data-slot=sidebar-inner]]:shadow-black/20"
         >
-            {runtimeFeatures.reverbEnabled && (
-                <RealtimeNotifications userId={auth.user.id} />
-            )}
             <SidebarHeader className="border-b border-sidebar-border/70 bg-linear-to-br from-white/70 via-sidebar-primary/10 to-transparent dark:bg-none">
                 <SidebarMenu>
                     <SidebarMenuItem>

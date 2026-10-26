@@ -2,16 +2,16 @@
 
 namespace App\Http\Controllers\Web\Advanced;
 
+use App\Actions\Advanced\UpdateIntegrationSettings;
 use App\Http\Controllers\Controller;
-use App\Models\ApplicationSetting;
+use App\Models\User;
 use App\Support\ApplicationFeatures;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 
 class IntegrationSettingsController extends Controller
 {
-    public function update(Request $request): RedirectResponse
+    public function update(Request $request, UpdateIntegrationSettings $updateSettings): RedirectResponse
     {
         abort_unless($request->user()?->hasRole('super-admin'), 403);
 
@@ -22,14 +22,9 @@ class IntegrationSettingsController extends Controller
 
         abort_if($validated === [], 422);
 
-        DB::transaction(function () use ($validated): void {
-            foreach ($validated as $key => $enabled) {
-                ApplicationSetting::query()->updateOrCreate(
-                    ['key' => $key],
-                    ['value' => $enabled ? '1' : '0'],
-                );
-            }
-        });
+        $actor = $request->user();
+        abort_unless($actor instanceof User, 401);
+        $updateSettings->handle($validated, $actor);
 
         return back()->with('success', 'Integraciones actualizadas.');
     }

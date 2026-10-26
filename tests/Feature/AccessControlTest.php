@@ -23,10 +23,12 @@ test('super admin can open access control through the gate bypass', function () 
         ->get(route('access-control.index'))
         ->assertOk()
         ->assertInertia(fn (Assert $page) => $page
-            ->component('access-control/index')
-            ->has('roles', 1)
-            ->has('permissions', 0)
-            ->where('stats.roles', 1)
+            ->component('access-control/users')
+            ->has('users', 1)
+            ->has('invitations', 0)
+            ->has('roles', 0)
+            ->where('stats.users', 1)
+            ->where('stats.superAdmins', 1)
         );
 });
 
@@ -166,6 +168,6 @@ test('the permission seeder assigns super admin and removes root', function () {
         ->and($user->hasRole('root'))->toBeFalse()
         ->and(Role::query()->where('name', 'root')->doesntExist())->toBeTrue()
         ->and(Permission::findByName('legacy.permission')->label)->toBe('Legacy Permission')
-        ->and(Permission::query()->count())->toBe(8)
+        ->and(Permission::query()->count())->toBe(14)
         ->and(Role::query()->count())->toBe(3);
 });

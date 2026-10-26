@@ -2,6 +2,7 @@
 
 namespace App\Notifications;
 
+use App\Support\MailBranding;
 use Illuminate\Auth\Notifications\VerifyEmail;
 use Illuminate\Notifications\Messages\MailMessage;
 
@@ -11,14 +12,14 @@ class VerifyEmailNotification extends VerifyEmail
     {
         $verificationUrl = $this->verificationUrl($notifiable);
 
-        return (new MailMessage)
-            ->subject('Confirma tu correo electrónico')
-            ->theme('paint')
-            ->markdown('emails.auth.verify-email', [
+        return app(MailBranding::class)->message(
+            'Confirma tu correo electrónico',
+            'emails.auth.verify-email', [
                 'name' => $notifiable->name,
                 'email' => $notifiable->getEmailForVerification(),
                 'verificationUrl' => $verificationUrl,
                 'expiresIn' => config('auth.verification.expire', 60),
-            ]);
+            ],
+        );
     }
 }

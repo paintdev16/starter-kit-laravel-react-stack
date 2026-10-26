@@ -2,17 +2,20 @@
 
 namespace App\Http\Controllers\Web\Advanced;
 
+use App\Actions\AccessControl\GetSocialLoginProviders;
+use App\Actions\Advanced\GetBackupSettings;
 use App\Http\Controllers\Controller;
 use App\Models\ApplicationSetting;
 use App\Support\ApplicationFeatures;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class ApplicationSettingsController extends Controller
 {
-    public function index(ApplicationFeatures $features): Response
+    public function index(Request $request, ApplicationFeatures $features, GetSocialLoginProviders $socialLoginProviders, GetBackupSettings $backupSettings): Response
     {
         $settings = ApplicationSetting::query()->pluck('value', 'key');
 
@@ -26,6 +29,12 @@ class ApplicationSettingsController extends Controller
                 'reverb_enabled' => $features->reverbEnabled(),
                 'sanctum_enabled' => $features->sanctumEnabled(),
             ],
+            'social_login' => Gate::allows('social-login.manage')
+                ? $socialLoginProviders->handle()
+                : null,
+            'backup_settings' => $request->user()?->hasRole('super-admin')
+                ? fn (): array => $backupSettings->handle()
+                : null,
         ]);
     }
 

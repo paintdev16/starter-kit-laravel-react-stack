@@ -4,6 +4,7 @@ export type User = {
     email: string;
     avatar?: string | null;
     email_verified_at: string | null;
+    is_active?: boolean;
     two_factor_enabled?: boolean;
     created_at: string;
     updated_at: string;
@@ -27,7 +28,9 @@ export type Auth = {
         deletePermissions: boolean;
         viewUsers: boolean;
         createUsers: boolean;
+        inviteUsers: boolean;
         updateUsers: boolean;
+        suspendUsers: boolean;
         deleteUsers: boolean;
         manageAdvanced: boolean;
     };

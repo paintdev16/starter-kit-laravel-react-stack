@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers\Web\AccessControl;
 
-use App\Actions\AccessControl\GetSocialLoginProviders;
 use App\Actions\AccessControl\CreateSocialLoginProvider;
 use App\Actions\AccessControl\DeleteSocialLoginProvider;
 use App\Actions\AccessControl\UpdateSocialLoginProvider;
@@ -11,18 +10,14 @@ use App\Models\SocialLoginProvider;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
-use Inertia\Inertia;
-use Inertia\Response;
 
 class SocialLoginSettingsController extends Controller
 {
-    public function index(GetSocialLoginProviders $getSocialLoginProviders): Response
+    public function index(): RedirectResponse
     {
         Gate::authorize('social-login.manage');
 
-        return Inertia::render('access-control/social-login', [
-            ...$getSocialLoginProviders->handle(),
-        ]);
+        return redirect()->route('advanced.settings.index', ['tab' => 'social-login']);
     }
 
     public function store(Request $request, CreateSocialLoginProvider $createSocialLoginProvider): RedirectResponse

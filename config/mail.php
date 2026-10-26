@@ -128,7 +128,7 @@ return [
     ],
 
     'markdown' => [
-        'theme' => env('MAIL_MARKDOWN_THEME', 'default'),
+        'theme' => env('MAIL_MARKDOWN_THEME', 'paint'),
         'paths' => [resource_path('views/vendor/mail')],
     ],
 

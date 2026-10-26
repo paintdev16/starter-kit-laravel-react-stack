@@ -3,11 +3,14 @@
 namespace App\Http\Controllers\Web\Settings;
 
 use App\Actions\AccessControl\StoreUserAvatars;
+use App\Actions\Settings\ManageApiTokens;
+use App\Actions\Settings\ManageBrowserSessions;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Settings\AvatarUpdateRequest;
 use App\Http\Requests\Settings\ProfileDeleteRequest;
 use App\Http\Requests\Settings\ProfileUpdateRequest;
 use App\Http\Requests\Settings\TwoFactorAuthenticationRequest;
+use App\Support\ApplicationFeatures;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Auth;
@@ -21,7 +24,7 @@ class ProfileController extends Controller
     /**
      * Show the user's profile settings page.
      */
-    public function edit(TwoFactorAuthenticationRequest $request): Response
+    public function edit(TwoFactorAuthenticationRequest $request, ManageBrowserSessions $sessions, ManageApiTokens $tokens, ApplicationFeatures $features): Response
     {
         $props = [
             'mustVerifyEmail' => $request->user() instanceof MustVerifyEmail,
@@ -45,6 +48,10 @@ class ProfileController extends Controller
                     ->all()
                 : [],
             'passwordRules' => Password::defaults()->toPasswordRulesString(),
+            'browserSessions' => fn (): array => $sessions->list($request->user(), $request),
+            'canManageSessions' => $sessions->supported(),
+            'apiTokens' => fn (): array => $tokens->list($request->user()),
+            'sanctumEnabled' => fn (): bool => $features->sanctumEnabled(),
         ];
 
         if (Features::canManageTwoFactorAuthentication()) {

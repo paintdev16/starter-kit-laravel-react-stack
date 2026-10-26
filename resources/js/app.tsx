@@ -17,10 +17,17 @@ const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
 initializeTheme();
 
 void createInertiaApp({
-    title: (title) => (title ? `${title} - ${appName}` : appName),
+    title: (title, page) => {
+        const configuredName = page.props.name;
+        const currentAppName =
+            typeof configuredName === 'string' ? configuredName : appName;
+
+        return title ? `${title} - ${currentAppName}` : currentAppName;
+    },
     layout: (name) => {
         switch (true) {
             case name === 'welcome':
+            case name.startsWith('setup/'):
                 return null;
             case name.startsWith('auth/'):
                 return AuthLayout;
@@ -33,7 +40,7 @@ void createInertiaApp({
     strictMode: true,
     withApp(app) {
         return (
-            <TooltipProvider >
+            <TooltipProvider>
                 {app}
                 <Toaster />
             </TooltipProvider>

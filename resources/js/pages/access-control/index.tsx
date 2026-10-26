@@ -29,7 +29,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { index as usersIndex } from '@/routes/access-control';
+import { index as rolesIndex } from '@/routes/access-control/roles';
 import type { Auth, BreadcrumbItem } from '@/types';
 
 type Permission = {
@@ -59,7 +59,7 @@ export type AccessControlProps = {
 };
 
 const breadcrumbs: BreadcrumbItem[] = [
-    { title: 'Usuarios', href: usersIndex() },
+    { title: 'Roles', href: rolesIndex() },
 ];
 
 function PermissionSelector({

@@ -3,7 +3,6 @@
 namespace App\Http\Middleware;
 
 use App\Models\ApplicationSetting;
-use App\Notifications\UserLoggedInNotification;
 use App\Support\ApplicationFeatures;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
@@ -44,6 +43,9 @@ class HandleInertiaRequests extends Middleware
             ->whereIn('key', ['app_name', 'support_email', 'timezone'])
             ->pluck('value', 'key');
 
+        $appName = $applicationSettings->get('app_name') ?? config('app.name');
+        config(['app.name' => $appName]);
+
         if (filled($applicationSettings->get('timezone'))) {
             config(['app.timezone' => $applicationSettings->get('timezone')]);
             date_default_timezone_set($applicationSettings->get('timezone'));
@@ -51,28 +53,12 @@ class HandleInertiaRequests extends Middleware
 
         return [
             ...parent::share($request),
-            'name' => $applicationSettings->get('app_name') ?? config('app.name'),
+            'name' => $appName,
             'applicationSettings' => [
                 'supportEmail' => $applicationSettings->get('support_email'),
                 'timezone' => $applicationSettings->get('timezone') ?? config('app.timezone'),
             ],
-            'runtimeFeatures' => [
-                'reverbEnabled' => $this->features->reverbEnabled(),
-            ],
-            'loginAlerts' => fn (): array => $request->user()?->hasRole('super-admin')
-                ? $request->user()->unreadNotifications()
-                    ->where('type', UserLoggedInNotification::class)
-                    ->latest()
-                    ->limit(20)
-                    ->get()
-                    ->map(fn ($notification): array => [
-                        'id' => $notification->id,
-                        'title' => $notification->data['title'] ?? 'Nuevo inicio de sesión',
-                        'message' => $notification->data['message'] ?? '',
-                        'created_at' => $notification->created_at->toISOString(),
-                    ])
-                    ->all()
-                : [],
+            'runtimeFeatures' => $this->features->reverbState(),
             'auth' => [
                 'user' => function () use ($request): ?array {
                     $user = $request->user();
@@ -106,7 +92,9 @@ class HandleInertiaRequests extends Middleware
                     'deletePermissions' => $request->user()?->can('permissions.delete') ?? false,
                     'viewUsers' => $request->user()?->can('users.view') ?? false,
                     'createUsers' => $request->user()?->can('users.create') ?? false,
+                    'inviteUsers' => $request->user()?->can('users.invite') ?? false,
                     'updateUsers' => $request->user()?->can('users.update') ?? false,
+                    'suspendUsers' => $request->user()?->can('users.suspend') ?? false,
                     'deleteUsers' => $request->user()?->can('users.delete') ?? false,
                     'manageAdvanced' => $request->user()?->can('manage-advanced') ?? false,
                 ],

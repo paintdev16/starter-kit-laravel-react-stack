@@ -34,7 +34,15 @@ class AuthenticateSocialUser
                 ->first();
 
             if ($account !== null) {
-                return $account->user()->firstOrFail();
+                $user = $account->user()->firstOrFail();
+
+                if (! $user->is_active) {
+                    throw ValidationException::withMessages([
+                        'social' => 'Tu cuenta está suspendida. Contacta con un administrador.',
+                    ]);
+                }
+
+                return $user;
             }
 
             $user = User::query()
@@ -53,8 +61,16 @@ class AuthenticateSocialUser
                 $user->forceFill(['email_verified_at' => now()])->save();
 
                 $user->assignRole(Role::findOrCreate('usuario', 'web'));
-            } elseif (! $user->hasVerifiedEmail()) {
-                $user->forceFill(['email_verified_at' => now()])->save();
+            } else {
+                if (! $user->is_active) {
+                    throw ValidationException::withMessages([
+                        'social' => 'Tu cuenta está suspendida. Contacta con un administrador.',
+                    ]);
+                }
+
+                if (! $user->hasVerifiedEmail()) {
+                    $user->forceFill(['email_verified_at' => now()])->save();
+                }
             }
 
             $user->socialAccounts()->create([

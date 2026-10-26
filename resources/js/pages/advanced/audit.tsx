@@ -4,6 +4,7 @@ import { DataTable } from '@/components/data-table';
 import type { DataTableColumn } from '@/components/data-table';
 import { Pagination, type PaginationLink } from '@/components/pagination';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { index as auditIndex } from '@/routes/advanced/audit';
 
 type Entry = {
     id: number;
@@ -81,3 +82,7 @@ export default function Audit({
         </>
     );
 }
+
+Audit.layout = {
+    breadcrumbs: [{ title: 'Auditoría', href: auditIndex() }],
+};

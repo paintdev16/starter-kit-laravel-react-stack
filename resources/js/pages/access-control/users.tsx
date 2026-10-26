@@ -1,16 +1,22 @@
 import { Form, Head, usePage } from '@inertiajs/react';
 import {
     Check,
+    Clock3,
     FileImage,
     ImagePlus,
     KeyRound,
     LockKeyhole,
+    LogOut,
+    MailPlus,
     Pencil,
     Plus,
+    RotateCw,
     Search,
     ShieldCheck,
     Trash2,
     UserRound,
+    UserRoundCheck,
+    UserRoundX,
     UsersRound,
     Upload,
     X,
@@ -18,6 +24,8 @@ import {
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { DragEvent, ReactElement } from 'react';
 import UserController from '@/actions/App/Http/Controllers/Web/AccessControl/UserController';
+import UserInvitationController from '@/actions/App/Http/Controllers/Web/AccessControl/UserInvitationController';
+import UserSuspensionController from '@/actions/App/Http/Controllers/Web/AccessControl/UserSuspensionController';
 import InputError from '@/components/input-error';
 import { AccessControlTabs } from '@/components/access-control-tabs';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -56,11 +64,27 @@ type ManagedUser = {
     created_at: string;
     roles: AssignedRole[];
     roles_count: number;
+    is_active: boolean;
+};
+type ManagedInvitation = {
+    id: number;
+    name: string;
+    email: string;
+    roles: string[];
+    expires_at: string;
+    created_at: string;
 };
 type Props = {
     users: ManagedUser[];
+    invitations: ManagedInvitation[];
     roles: Role[];
-    stats: { users: number; withRoles: number; superAdmins: number };
+    stats: {
+        users: number;
+        withRoles: number;
+        superAdmins: number;
+        suspended: number;
+        pendingInvitations: number;
+    };
 };
 
 const breadcrumbs: BreadcrumbItem[] = [
@@ -87,7 +111,9 @@ function RoleSelector({
     onChange: (roleId: number, checked: boolean) => void;
 }) {
     const permissionsByRole = useMemo(() => {
-        const selectedRoles = roles.filter((role) => selected.includes(role.id));
+        const selectedRoles = roles.filter((role) =>
+            selected.includes(role.id),
+        );
         const permissions = new Map<number, Permission & { roles: string[] }>();
 
         selectedRoles.forEach((role) => {
@@ -115,7 +141,8 @@ function RoleSelector({
             <div>
                 <h3 className="text-sm font-medium">Roles</h3>
                 <p className="mt-0.5 text-xs text-muted-foreground">
-                    Selecciona uno o varios roles para ver los permisos que hereda la cuenta.
+                    Selecciona uno o varios roles para ver los permisos que
+                    hereda la cuenta.
                 </p>
             </div>
             <div className="grid max-h-40 gap-1.5 overflow-y-auto rounded-xl border border-border/70 bg-muted/20 p-2 sm:grid-cols-2">
@@ -128,7 +155,9 @@ function RoleSelector({
                             name="roles[]"
                             value={String(role.id)}
                             checked={selected.includes(role.id)}
-                            onCheckedChange={(checked) => onChange(role.id, checked)}
+                            onCheckedChange={(checked) =>
+                                onChange(role.id, checked)
+                            }
                             className="mt-0.5"
                         />
                         <span className="min-w-0">
@@ -137,7 +166,9 @@ function RoleSelector({
                             </span>
                             <span className="text-[11px] text-muted-foreground">
                                 {role.permissions.length}{' '}
-                                {role.permissions.length === 1 ? 'permiso' : 'permisos'}
+                                {role.permissions.length === 1
+                                    ? 'permiso'
+                                    : 'permisos'}
                             </span>
                         </span>
                     </Label>
@@ -168,7 +199,9 @@ function RoleSelector({
                                 title={`${permission.name} · ${permission.roles.join(', ')}`}
                                 className="rounded-lg border border-border/70 bg-background px-2.5 py-1.5 text-xs"
                             >
-                                <span className="font-medium">{permission.label}</span>
+                                <span className="font-medium">
+                                    {permission.label}
+                                </span>
                                 <span className="ml-1.5 text-muted-foreground">
                                     · {permission.roles.join(', ')}
                                 </span>
@@ -223,7 +256,9 @@ function AvatarUpload({
     }
 
     function removeFile(index: number) {
-        const nextFiles = selectedFiles.filter((_, fileIndex) => fileIndex !== index);
+        const nextFiles = selectedFiles.filter(
+            (_, fileIndex) => fileIndex !== index,
+        );
         setSelectedFiles(nextFiles);
 
         if (inputRef.current) {
@@ -236,7 +271,11 @@ function AvatarUpload({
     function handleDrop(event: DragEvent<HTMLButtonElement>) {
         event.preventDefault();
         setIsDragging(false);
-        syncFiles(Array.from(event.dataTransfer.files).filter((file) => file.type.startsWith('image/')));
+        syncFiles(
+            Array.from(event.dataTransfer.files).filter((file) =>
+                file.type.startsWith('image/'),
+            ),
+        );
     }
 
     return (
@@ -250,18 +289,31 @@ function AvatarUpload({
 
             <div className="flex flex-col gap-4 rounded-2xl border border-border/70 bg-linear-to-br from-card via-card to-primary/5 p-4 sm:flex-row sm:items-center">
                 <div className="flex min-w-0 items-center gap-3 sm:w-52 sm:shrink-0">
-                    <Avatar className="size-14 ring-2 ring-background shadow-sm">
-                        <AvatarImage src={user?.avatar_url ?? undefined} alt={user?.name ?? 'Usuario'} />
+                    <Avatar className="size-14 shadow-sm ring-2 ring-background">
+                        <AvatarImage
+                            src={user?.avatar_url ?? undefined}
+                            alt={user?.name ?? 'Usuario'}
+                        />
                         <AvatarFallback className="bg-primary/10 font-semibold text-primary">
-                            {user ? initials(user.name) : <UserRound className="size-5" />}
+                            {user ? (
+                                initials(user.name)
+                            ) : (
+                                <UserRound className="size-5" />
+                            )}
                         </AvatarFallback>
                     </Avatar>
                     <div className="min-w-0">
-                        <p className="text-xs font-medium text-muted-foreground">Foto actual</p>
-                        <p className="truncate text-sm font-semibold">{user?.name ?? 'Nuevo usuario'}</p>
+                        <p className="text-xs font-medium text-muted-foreground">
+                            Foto actual
+                        </p>
+                        <p className="truncate text-sm font-semibold">
+                            {user?.name ?? 'Nuevo usuario'}
+                        </p>
                         <span className="mt-1 inline-flex items-center gap-1 text-[11px] text-emerald-600 dark:text-emerald-400">
                             <Check className="size-3" />
-                            {user?.avatar_url ? 'Perfil personalizado' : 'Iniciales por defecto'}
+                            {user?.avatar_url
+                                ? 'Perfil personalizado'
+                                : 'Iniciales por defecto'}
                         </span>
                     </div>
                 </div>
@@ -277,7 +329,9 @@ function AvatarUpload({
                         className="sr-only"
                         aria-label="Seleccionar imágenes de perfil"
                         onChange={(event) => {
-                            const files = Array.from(event.currentTarget.files ?? []);
+                            const files = Array.from(
+                                event.currentTarget.files ?? [],
+                            );
                             event.currentTarget.value = '';
                             syncFiles(files);
                         }}
@@ -291,21 +345,34 @@ function AvatarUpload({
                         }}
                         onDragOver={(event) => event.preventDefault()}
                         onDragLeave={(event) => {
-                            if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+                            if (
+                                !event.currentTarget.contains(
+                                    event.relatedTarget as Node | null,
+                                )
+                            ) {
                                 setIsDragging(false);
                             }
                         }}
                         onDrop={handleDrop}
-                        className={`group flex min-h-28 w-full flex-col items-center justify-center gap-2 rounded-xl border border-dashed px-4 py-4 text-center transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${isDragging ? 'border-primary bg-primary/10 shadow-inner' : 'border-primary/25 bg-background/70 hover:border-primary/50 hover:bg-primary/5'}`}
+                        className={`group flex min-h-28 w-full flex-col items-center justify-center gap-2 rounded-xl border border-dashed px-4 py-4 text-center transition-all focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none ${isDragging ? 'border-primary bg-primary/10 shadow-inner' : 'border-primary/25 bg-background/70 hover:border-primary/50 hover:bg-primary/5'}`}
                     >
-                        <span className={`flex size-9 items-center justify-center rounded-xl transition-colors ${isDragging ? 'bg-primary text-primary-foreground' : 'bg-primary/10 text-primary group-hover:bg-primary/15'}`}>
-                            {selectedFiles.length > 0 ? <ImagePlus className="size-4" /> : <Upload className="size-4" />}
+                        <span
+                            className={`flex size-9 items-center justify-center rounded-xl transition-colors ${isDragging ? 'bg-primary text-primary-foreground' : 'bg-primary/10 text-primary group-hover:bg-primary/15'}`}
+                        >
+                            {selectedFiles.length > 0 ? (
+                                <ImagePlus className="size-4" />
+                            ) : (
+                                <Upload className="size-4" />
+                            )}
                         </span>
                         <span className="text-sm font-medium">
-                            {isDragging ? 'Suelta las imágenes aquí' : 'Haz clic o arrastra imágenes aquí'}
+                            {isDragging
+                                ? 'Suelta las imágenes aquí'
+                                : 'Haz clic o arrastra imágenes aquí'}
                         </span>
                         <span className="text-[11px] text-muted-foreground">
-                            JPG, PNG o WebP · Máximo 5 MB por imagen · Hasta 10 imágenes
+                            JPG, PNG o WebP · Máximo 5 MB por imagen · Hasta 10
+                            imágenes
                         </span>
                     </button>
                     <InputError message={avatarError} className="mt-2" />
@@ -315,11 +382,18 @@ function AvatarUpload({
             {previews.length > 0 && (
                 <div className="flex flex-wrap gap-3 rounded-xl border border-border/60 bg-muted/15 p-3">
                     {previews.map(({ file, url }, index) => (
-                        <div key={`${file.name}-${file.lastModified}-${index}`} className="group/file relative size-[4.5rem] overflow-hidden rounded-xl border border-border bg-background shadow-sm">
-                            <img src={url} alt={`Vista previa ${index + 1}`} className="size-full object-cover" />
+                        <div
+                            key={`${file.name}-${file.lastModified}-${index}`}
+                            className="group/file relative size-[4.5rem] overflow-hidden rounded-xl border border-border bg-background shadow-sm"
+                        >
+                            <img
+                                src={url}
+                                alt={`Vista previa ${index + 1}`}
+                                className="size-full object-cover"
+                            />
                             <button
                                 type="button"
-                                className="absolute top-1 right-1 flex size-5 items-center justify-center rounded-full bg-background/95 text-foreground opacity-0 shadow transition-opacity hover:bg-destructive hover:text-destructive-foreground focus-visible:opacity-100 group-hover/file:opacity-100"
+                                className="absolute top-1 right-1 flex size-5 items-center justify-center rounded-full bg-background/95 text-foreground opacity-0 shadow transition-opacity group-hover/file:opacity-100 hover:bg-destructive hover:text-destructive-foreground focus-visible:opacity-100"
                                 aria-label={`Quitar ${file.name}`}
                                 onClick={() => removeFile(index)}
                             >
@@ -332,8 +406,13 @@ function AvatarUpload({
                         </div>
                     ))}
                     <div className="flex min-h-[4.5rem] min-w-24 flex-col justify-center px-1">
-                        <p className="text-xs font-semibold">{previews.length} seleccionada{previews.length === 1 ? '' : 's'}</p>
-                        <p className="text-[10px] text-muted-foreground">La última será la principal</p>
+                        <p className="text-xs font-semibold">
+                            {previews.length} seleccionada
+                            {previews.length === 1 ? '' : 's'}
+                        </p>
+                        <p className="text-[10px] text-muted-foreground">
+                            La última será la principal
+                        </p>
                     </div>
                 </div>
             )}
@@ -357,7 +436,9 @@ function UserDialog({
 
     useEffect(() => {
         if (open) {
-            setSelectedRoleIds(roleIdsKey ? roleIdsKey.split(',').map(Number) : []);
+            setSelectedRoleIds(
+                roleIdsKey ? roleIdsKey.split(',').map(Number) : [],
+            );
         }
     }, [open, roleIdsKey]);
 
@@ -375,11 +456,18 @@ function UserDialog({
             <DialogContent className="max-h-[88vh] overflow-y-auto sm:max-w-2xl">
                 <DialogHeader>
                     <span className="flex size-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                        {user ? <Pencil className="size-5" /> : <UserRound className="size-5" />}
+                        {user ? (
+                            <Pencil className="size-5" />
+                        ) : (
+                            <UserRound className="size-5" />
+                        )}
                     </span>
-                    <DialogTitle>{user ? 'Editar usuario' : 'Crear usuario'}</DialogTitle>
+                    <DialogTitle>
+                        {user ? 'Editar usuario' : 'Crear usuario'}
+                    </DialogTitle>
                     <DialogDescription>
-                        Administra los datos de acceso y los permisos heredados de sus roles.
+                        Administra los datos de acceso y los permisos heredados
+                        de sus roles.
                     </DialogDescription>
                 </DialogHeader>
 
@@ -395,7 +483,9 @@ function UserDialog({
                         <>
                             <div className="grid gap-4 sm:grid-cols-2">
                                 <div className="grid gap-2">
-                                    <Label htmlFor={`user-name-${user?.id ?? 'new'}`}>
+                                    <Label
+                                        htmlFor={`user-name-${user?.id ?? 'new'}`}
+                                    >
                                         Nombre
                                     </Label>
                                     <Input
@@ -410,7 +500,9 @@ function UserDialog({
                                     <InputError message={errors.name} />
                                 </div>
                                 <div className="grid gap-2">
-                                    <Label htmlFor={`user-email-${user?.id ?? 'new'}`}>
+                                    <Label
+                                        htmlFor={`user-email-${user?.id ?? 'new'}`}
+                                    >
                                         Correo electrónico
                                     </Label>
                                     <Input
@@ -426,8 +518,12 @@ function UserDialog({
                                     <InputError message={errors.email} />
                                 </div>
                                 <div className="grid gap-2">
-                                    <Label htmlFor={`user-password-${user?.id ?? 'new'}`}>
-                                        {user ? 'Nueva contraseña (opcional)' : 'Contraseña'}
+                                    <Label
+                                        htmlFor={`user-password-${user?.id ?? 'new'}`}
+                                    >
+                                        {user
+                                            ? 'Nueva contraseña (opcional)'
+                                            : 'Contraseña'}
                                     </Label>
                                     <Input
                                         id={`user-password-${user?.id ?? 'new'}`}
@@ -440,7 +536,9 @@ function UserDialog({
                                     <InputError message={errors.password} />
                                 </div>
                                 <div className="grid gap-2">
-                                    <Label htmlFor={`user-password-confirmation-${user?.id ?? 'new'}`}>
+                                    <Label
+                                        htmlFor={`user-password-confirmation-${user?.id ?? 'new'}`}
+                                    >
                                         Confirmar contraseña
                                     </Label>
                                     <Input
@@ -456,7 +554,9 @@ function UserDialog({
                             <AvatarUpload
                                 key={`${user?.id ?? 'new'}-${open ? 'open' : 'closed'}`}
                                 user={user}
-                                avatarError={errors.avatars || errors['avatars.0']}
+                                avatarError={
+                                    errors.avatars || errors['avatars.0']
+                                }
                             />
 
                             <div className="border-t border-border/70 pt-4">
@@ -470,7 +570,14 @@ function UserDialog({
                             <InputError message={errors.user} />
 
                             <DialogFooter>
-                                <DialogClose render={<Button type="button" variant="outline" />}>
+                                <DialogClose
+                                    render={
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                        />
+                                    }
+                                >
                                     Cancelar
                                 </DialogClose>
                                 <Button type="submit" disabled={processing}>
@@ -513,7 +620,8 @@ function DeleteUserDialog({ user }: { user: ManagedUser }) {
                     </span>
                     <DialogTitle>Eliminar usuario</DialogTitle>
                     <DialogDescription>
-                        Se eliminará la cuenta de {user.name}. Esta acción no se puede deshacer.
+                        Se eliminará la cuenta de {user.name}. Esta acción no se
+                        puede deshacer.
                     </DialogDescription>
                 </DialogHeader>
                 <Form
@@ -525,11 +633,24 @@ function DeleteUserDialog({ user }: { user: ManagedUser }) {
                         <>
                             <InputError message={errors.user} />
                             <DialogFooter className="mt-5">
-                                <DialogClose render={<Button type="button" variant="outline" />}>
+                                <DialogClose
+                                    render={
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                        />
+                                    }
+                                >
                                     Cancelar
                                 </DialogClose>
-                                <Button type="submit" variant="destructive" disabled={processing}>
-                                    {processing ? 'Eliminando…' : 'Eliminar usuario'}
+                                <Button
+                                    type="submit"
+                                    variant="destructive"
+                                    disabled={processing}
+                                >
+                                    {processing
+                                        ? 'Eliminando…'
+                                        : 'Eliminar usuario'}
                                 </Button>
                             </DialogFooter>
                         </>
@@ -540,7 +661,341 @@ function DeleteUserDialog({ user }: { user: ManagedUser }) {
     );
 }
 
-export default function Users({ users, roles, stats }: Props) {
+function InviteUserDialog({ roles }: { roles: Role[] }) {
+    const [open, setOpen] = useState(false);
+    const [selectedRoleIds, setSelectedRoleIds] = useState<number[]>([]);
+
+    function updateRole(roleId: number, checked: boolean) {
+        setSelectedRoleIds((current) =>
+            checked
+                ? Array.from(new Set([...current, roleId]))
+                : current.filter((id) => id !== roleId),
+        );
+    }
+
+    return (
+        <Dialog open={open} onOpenChange={setOpen}>
+            <DialogTrigger
+                render={
+                    <Button size="lg" variant="outline">
+                        <MailPlus />
+                        Invitar usuario
+                    </Button>
+                }
+            />
+            <DialogContent className="max-h-[88vh] overflow-y-auto sm:max-w-2xl">
+                <DialogHeader>
+                    <span className="flex size-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                        <MailPlus className="size-5" />
+                    </span>
+                    <DialogTitle>Invitar a un usuario</DialogTitle>
+                    <DialogDescription>
+                        Enviaremos un enlace válido por siete días para que la
+                        persona cree su contraseña y active su cuenta.
+                    </DialogDescription>
+                </DialogHeader>
+
+                <Form
+                    {...UserInvitationController.store.form()}
+                    options={{ preserveScroll: true }}
+                    onSuccess={() => {
+                        setOpen(false);
+                        setSelectedRoleIds([]);
+                    }}
+                    className="space-y-5"
+                >
+                    {({ errors, processing }) => (
+                        <>
+                            <div className="grid gap-4 sm:grid-cols-2">
+                                <div className="grid gap-2">
+                                    <Label htmlFor="invite-name">Nombre</Label>
+                                    <Input
+                                        id="invite-name"
+                                        name="name"
+                                        placeholder="Nombre completo"
+                                        autoComplete="name"
+                                        required
+                                        aria-invalid={Boolean(errors.name)}
+                                    />
+                                    <InputError message={errors.name} />
+                                </div>
+                                <div className="grid gap-2">
+                                    <Label htmlFor="invite-email">
+                                        Correo electrónico
+                                    </Label>
+                                    <Input
+                                        id="invite-email"
+                                        name="email"
+                                        type="email"
+                                        placeholder="nombre@empresa.com"
+                                        autoComplete="email"
+                                        required
+                                        aria-invalid={Boolean(errors.email)}
+                                    />
+                                    <InputError message={errors.email} />
+                                </div>
+                            </div>
+
+                            <RoleSelector
+                                roles={roles}
+                                selected={selectedRoleIds}
+                                onChange={updateRole}
+                            />
+                            <InputError message={errors.roles} />
+
+                            <DialogFooter>
+                                <DialogClose
+                                    render={
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                        />
+                                    }
+                                >
+                                    Cancelar
+                                </DialogClose>
+                                <Button type="submit" disabled={processing}>
+                                    {processing
+                                        ? 'Enviando…'
+                                        : 'Enviar invitación'}
+                                </Button>
+                            </DialogFooter>
+                        </>
+                    )}
+                </Form>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
+function UserLifecycleDialog({
+    user,
+    action,
+}: {
+    user: ManagedUser;
+    action: 'suspend' | 'activate' | 'revoke';
+}) {
+    const [open, setOpen] = useState(false);
+    const config = {
+        suspend: {
+            title: 'Suspender cuenta',
+            description: `Se cerrarán las sesiones, se revocarán los tokens y las passkeys de ${user.name}. La persona no podrá acceder hasta que reactives la cuenta.`,
+            label: 'Suspender cuenta',
+            icon: UserRoundX,
+            variant: 'destructive' as const,
+            form: UserSuspensionController.store.form(user.id),
+        },
+        activate: {
+            title: 'Reactivar cuenta',
+            description: `La cuenta de ${user.name} podrá volver a iniciar sesión. Las sesiones y tokens anteriores seguirán revocados.`,
+            label: 'Reactivar cuenta',
+            icon: UserRoundCheck,
+            variant: 'default' as const,
+            form: UserSuspensionController.destroy.form(user.id),
+        },
+        revoke: {
+            title: 'Cerrar sesiones y revocar tokens',
+            description: `Se cerrarán las sesiones web activas y se revocarán todos los tokens API de ${user.name}. La cuenta seguirá activa.`,
+            label: 'Revocar accesos',
+            icon: LogOut,
+            variant: 'destructive' as const,
+            form: UserSuspensionController.revokeAccess.form(user.id),
+        },
+    }[action];
+    const Icon = config.icon;
+
+    return (
+        <Dialog open={open} onOpenChange={setOpen}>
+            <DialogTrigger
+                render={
+                    <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        className={
+                            action === 'suspend' || action === 'revoke'
+                                ? 'text-muted-foreground hover:text-destructive'
+                                : 'text-muted-foreground hover:text-primary'
+                        }
+                        title={config.label}
+                    />
+                }
+            >
+                <Icon />
+                <span className="sr-only">
+                    {config.label}: {user.name}
+                </span>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-md">
+                <DialogHeader>
+                    <span
+                        className={`flex size-10 items-center justify-center rounded-xl ${action === 'activate' ? 'bg-primary/10 text-primary' : 'bg-destructive/10 text-destructive'}`}
+                    >
+                        <Icon className="size-5" />
+                    </span>
+                    <DialogTitle>{config.title}</DialogTitle>
+                    <DialogDescription>{config.description}</DialogDescription>
+                </DialogHeader>
+                <Form
+                    {...config.form}
+                    options={{ preserveScroll: true }}
+                    onSuccess={() => setOpen(false)}
+                >
+                    {({ errors, processing }) => (
+                        <>
+                            <InputError message={errors.user} />
+                            <DialogFooter className="mt-5">
+                                <DialogClose
+                                    render={
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                        />
+                                    }
+                                >
+                                    Volver
+                                </DialogClose>
+                                <Button
+                                    type="submit"
+                                    variant={config.variant}
+                                    disabled={processing}
+                                >
+                                    {processing ? 'Procesando…' : config.label}
+                                </Button>
+                            </DialogFooter>
+                        </>
+                    )}
+                </Form>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
+function PendingInvitations({
+    invitations,
+}: {
+    invitations: ManagedInvitation[];
+}) {
+    return (
+        <section className="space-y-3">
+            <div className="flex items-center gap-2">
+                <Clock3 className="size-4 text-muted-foreground" />
+                <h2 className="text-lg font-semibold tracking-tight">
+                    Invitaciones pendientes
+                </h2>
+                <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                    {invitations.length}
+                </span>
+            </div>
+            <Card className="py-0">
+                <CardContent className="divide-y divide-border/60 p-0">
+                    {invitations.map((invitation) => {
+                        const expired =
+                            new Date(invitation.expires_at).getTime() <=
+                            Date.now();
+
+                        return (
+                            <article
+                                key={invitation.id}
+                                className="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:px-5"
+                            >
+                                <div className="flex min-w-0 flex-1 items-center gap-3">
+                                    <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-muted text-muted-foreground">
+                                        <MailPlus className="size-4" />
+                                    </span>
+                                    <div className="min-w-0 flex-1">
+                                        <div className="flex flex-wrap items-center gap-2">
+                                            <h3 className="truncate text-sm font-semibold">
+                                                {invitation.name}
+                                            </h3>
+                                            <span
+                                                className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${expired ? 'bg-amber-500/10 text-amber-700 dark:text-amber-300' : 'bg-primary/10 text-primary'}`}
+                                            >
+                                                {expired
+                                                    ? 'Vencida'
+                                                    : 'Pendiente'}
+                                            </span>
+                                        </div>
+                                        <p className="truncate text-xs text-muted-foreground">
+                                            {invitation.email}
+                                        </p>
+                                        <p className="mt-1 text-xs text-muted-foreground">
+                                            {invitation.roles.length > 0
+                                                ? invitation.roles.join(' · ')
+                                                : 'Sin roles'}
+                                            {' · '}Vence{' '}
+                                            {new Date(
+                                                invitation.expires_at,
+                                            ).toLocaleDateString('es-PE', {
+                                                dateStyle: 'medium',
+                                            })}
+                                        </p>
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-2 sm:justify-end">
+                                    <Form
+                                        {...UserInvitationController.resend.form(
+                                            invitation.id,
+                                        )}
+                                        options={{ preserveScroll: true }}
+                                    >
+                                        {({ processing }) => (
+                                            <Button
+                                                type="submit"
+                                                variant="outline"
+                                                size="sm"
+                                                disabled={processing}
+                                            >
+                                                <RotateCw />
+                                                {processing
+                                                    ? 'Enviando…'
+                                                    : 'Reenviar'}
+                                            </Button>
+                                        )}
+                                    </Form>
+                                    <Form
+                                        {...UserInvitationController.destroy.form(
+                                            invitation.id,
+                                        )}
+                                        options={{ preserveScroll: true }}
+                                    >
+                                        {({ processing }) => (
+                                            <Button
+                                                type="submit"
+                                                variant="ghost"
+                                                size="sm"
+                                                className="text-muted-foreground hover:text-destructive"
+                                                disabled={processing}
+                                            >
+                                                <X />
+                                                Cancelar
+                                            </Button>
+                                        )}
+                                    </Form>
+                                </div>
+                            </article>
+                        );
+                    })}
+                    {invitations.length === 0 && (
+                        <div className="flex flex-col items-center px-6 py-10 text-center">
+                            <span className="flex size-11 items-center justify-center rounded-xl bg-muted text-muted-foreground">
+                                <MailPlus className="size-5" />
+                            </span>
+                            <p className="mt-3 text-sm font-medium">
+                                No hay invitaciones pendientes
+                            </p>
+                            <p className="mt-1 text-xs text-muted-foreground">
+                                Las invitaciones vencidas también aparecen aquí
+                                para que puedas reenviarlas.
+                            </p>
+                        </div>
+                    )}
+                </CardContent>
+            </Card>
+        </section>
+    );
+}
+
+export default function Users({ users, invitations, roles, stats }: Props) {
     const { auth } = usePage<{ auth: Auth }>().props;
     const [search, setSearch] = useState('');
     const filteredUsers = useMemo(() => {
@@ -573,28 +1028,51 @@ export default function Users({ users, roles, stats }: Props) {
                                 Usuarios
                             </h1>
                             <p className="mt-2 text-sm leading-6 text-muted-foreground sm:text-base">
-                                Administra las cuentas del equipo y sus niveles de acceso.
+                                Administra las cuentas del equipo y sus niveles
+                                de acceso.
                             </p>
                         </div>
-                        {auth.can.createUsers && (
-                            <UserDialog
-                                roles={roles}
-                                trigger={
-                                    <Button size="lg">
-                                        <Plus />
-                                        Nuevo usuario
-                                    </Button>
-                                }
-                            />
-                        )}
+                        <div className="flex flex-wrap gap-2">
+                            {auth.can.inviteUsers && (
+                                <InviteUserDialog roles={roles} />
+                            )}
+                            {auth.can.createUsers && (
+                                <UserDialog
+                                    roles={roles}
+                                    trigger={
+                                        <Button size="lg">
+                                            <Plus />
+                                            Nuevo usuario
+                                        </Button>
+                                    }
+                                />
+                            )}
+                        </div>
                     </div>
                 </section>
 
-                <section className="grid gap-3 sm:grid-cols-3">
+                <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                     {[
-                        { label: 'Cuentas registradas', value: stats.users, icon: UsersRound },
-                        { label: 'Con rol asignado', value: stats.withRoles, icon: ShieldCheck },
-                        { label: 'Cuentas protegidas', value: stats.superAdmins, icon: LockKeyhole },
+                        {
+                            label: 'Cuentas registradas',
+                            value: stats.users,
+                            icon: UsersRound,
+                        },
+                        {
+                            label: 'Con rol asignado',
+                            value: stats.withRoles,
+                            icon: ShieldCheck,
+                        },
+                        {
+                            label: 'Cuentas protegidas',
+                            value: stats.superAdmins,
+                            icon: LockKeyhole,
+                        },
+                        {
+                            label: 'Cuentas suspendidas',
+                            value: stats.suspended,
+                            icon: UserRoundX,
+                        },
                     ].map((item) => (
                         <Card key={item.label} className="py-0">
                             <CardContent className="flex items-center gap-4 p-5">
@@ -602,8 +1080,12 @@ export default function Users({ users, roles, stats }: Props) {
                                     <item.icon className="size-5" />
                                 </span>
                                 <div>
-                                    <p className="text-2xl font-semibold tracking-tight">{item.value}</p>
-                                    <p className="text-xs text-muted-foreground sm:text-sm">{item.label}</p>
+                                    <p className="text-2xl font-semibold tracking-tight">
+                                        {item.value}
+                                    </p>
+                                    <p className="text-xs text-muted-foreground sm:text-sm">
+                                        {item.label}
+                                    </p>
                                 </div>
                             </CardContent>
                         </Card>
@@ -613,18 +1095,29 @@ export default function Users({ users, roles, stats }: Props) {
                 <section className="space-y-4">
                     <AccessControlTabs active="users" />
 
+                    {auth.can.inviteUsers && (
+                        <PendingInvitations invitations={invitations} />
+                    )}
+
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                         <div>
-                            <h2 className="text-lg font-semibold tracking-tight">Directorio del equipo</h2>
+                            <h2 className="text-lg font-semibold tracking-tight">
+                                Directorio del equipo
+                            </h2>
                             <p className="text-sm text-muted-foreground">
-                                {filteredUsers.length} {filteredUsers.length === 1 ? 'cuenta' : 'cuentas'}
+                                {filteredUsers.length}{' '}
+                                {filteredUsers.length === 1
+                                    ? 'cuenta'
+                                    : 'cuentas'}
                             </p>
                         </div>
                         <div className="relative w-full sm:max-w-xs">
                             <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
                             <Input
                                 value={search}
-                                onChange={(event) => setSearch(event.target.value)}
+                                onChange={(event) =>
+                                    setSearch(event.target.value)
+                                }
                                 placeholder="Buscar por nombre, correo o rol…"
                                 className="pl-9"
                                 aria-label="Buscar usuarios"
@@ -635,7 +1128,9 @@ export default function Users({ users, roles, stats }: Props) {
                     <Card className="py-0">
                         <CardContent className="divide-y divide-border/60 p-0">
                             {filteredUsers.map((user) => {
-                                const protectedUser = user.roles.some((role) => role.name === 'super-admin');
+                                const protectedUser = user.roles.some(
+                                    (role) => role.name === 'super-admin',
+                                );
 
                                 return (
                                     <article
@@ -644,62 +1139,140 @@ export default function Users({ users, roles, stats }: Props) {
                                     >
                                         <div className="flex min-w-0 flex-1 items-center gap-3">
                                             <Avatar className="size-11">
-                                                <AvatarImage src={user.avatar_url ?? undefined} />
+                                                <AvatarImage
+                                                    src={
+                                                        user.avatar_url ??
+                                                        undefined
+                                                    }
+                                                />
                                                 <AvatarFallback className="bg-primary/10 font-semibold text-primary">
                                                     {initials(user.name)}
                                                 </AvatarFallback>
                                             </Avatar>
                                             <div className="min-w-0 flex-1">
                                                 <div className="flex flex-wrap items-center gap-2">
-                                                    <h3 className="truncate text-sm font-semibold">{user.name}</h3>
+                                                    <h3 className="truncate text-sm font-semibold">
+                                                        {user.name}
+                                                    </h3>
                                                     {protectedUser && (
                                                         <span className="rounded-full bg-amber-500/10 px-2 py-0.5 text-[11px] font-medium text-amber-700 dark:text-amber-300">
                                                             Super-admin
                                                         </span>
                                                     )}
+                                                    {!user.is_active && (
+                                                        <span className="rounded-full bg-destructive/10 px-2 py-0.5 text-[11px] font-medium text-destructive">
+                                                            Suspendida
+                                                        </span>
+                                                    )}
                                                 </div>
-                                                <p className="truncate text-xs text-muted-foreground">{user.email}</p>
+                                                <p className="truncate text-xs text-muted-foreground">
+                                                    {user.email}
+                                                </p>
                                             </div>
                                         </div>
 
                                         <div className="flex min-w-0 flex-1 flex-wrap gap-1.5">
                                             {user.roles.map((role) => (
-                                                <span key={role.id} className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary">
+                                                <span
+                                                    key={role.id}
+                                                    className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary"
+                                                >
                                                     {role.name}
                                                 </span>
                                             ))}
                                             {user.roles.length === 0 && (
-                                                <span className="text-xs text-muted-foreground">Sin roles</span>
+                                                <span className="text-xs text-muted-foreground">
+                                                    Sin roles
+                                                </span>
                                             )}
                                         </div>
 
                                         <div className="flex items-center justify-between gap-3 sm:justify-end">
                                             <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                                                <span className="inline-flex items-center gap-1.5" title="Permisos heredados de roles">
+                                                <span
+                                                    className="inline-flex items-center gap-1.5"
+                                                    title="Permisos heredados de roles"
+                                                >
                                                     <KeyRound className="size-3.5" />
-                                                    {new Set(user.roles.flatMap((role) => role.permissions.map((permission) => permission.id))).size}
+                                                    {
+                                                        new Set(
+                                                            user.roles.flatMap(
+                                                                (role) =>
+                                                                    role.permissions.map(
+                                                                        (
+                                                                            permission,
+                                                                        ) =>
+                                                                            permission.id,
+                                                                    ),
+                                                            ),
+                                                        ).size
+                                                    }
                                                 </span>
                                                 <span className="hidden sm:inline">
-                                                    {user.email_verified_at ? 'Verificado' : 'Sin verificar'}
+                                                    {user.email_verified_at
+                                                        ? 'Verificado'
+                                                        : 'Sin verificar'}
                                                 </span>
                                             </div>
                                             <div className="flex items-center gap-1">
-                                                {auth.can.updateUsers && !protectedUser && (
-                                                    <UserDialog
-                                                        key={`edit-user-${user.id}`}
-                                                        user={user}
-                                                        roles={roles}
-                                                        trigger={
-                                                            <Button variant="ghost" size="icon-sm">
-                                                                <Pencil />
-                                                                <span className="sr-only">Editar {user.name}</span>
-                                                            </Button>
-                                                        }
-                                                    />
-                                                )}
-                                                {auth.can.deleteUsers && !protectedUser && user.id !== auth.user.id && (
-                                                    <DeleteUserDialog user={user} />
-                                                )}
+                                                {auth.can.suspendUsers &&
+                                                    !protectedUser &&
+                                                    user.id !==
+                                                        auth.user.id && (
+                                                        <>
+                                                            {user.is_active ? (
+                                                                <>
+                                                                    <UserLifecycleDialog
+                                                                        user={
+                                                                            user
+                                                                        }
+                                                                        action="revoke"
+                                                                    />
+                                                                    <UserLifecycleDialog
+                                                                        user={
+                                                                            user
+                                                                        }
+                                                                        action="suspend"
+                                                                    />
+                                                                </>
+                                                            ) : (
+                                                                <UserLifecycleDialog
+                                                                    user={user}
+                                                                    action="activate"
+                                                                />
+                                                            )}
+                                                        </>
+                                                    )}
+                                                {auth.can.updateUsers &&
+                                                    !protectedUser && (
+                                                        <UserDialog
+                                                            key={`edit-user-${user.id}`}
+                                                            user={user}
+                                                            roles={roles}
+                                                            trigger={
+                                                                <Button
+                                                                    variant="ghost"
+                                                                    size="icon-sm"
+                                                                >
+                                                                    <Pencil />
+                                                                    <span className="sr-only">
+                                                                        Editar{' '}
+                                                                        {
+                                                                            user.name
+                                                                        }
+                                                                    </span>
+                                                                </Button>
+                                                            }
+                                                        />
+                                                    )}
+                                                {auth.can.deleteUsers &&
+                                                    !protectedUser &&
+                                                    user.id !==
+                                                        auth.user.id && (
+                                                        <DeleteUserDialog
+                                                            user={user}
+                                                        />
+                                                    )}
                                             </div>
                                         </div>
                                     </article>
@@ -710,9 +1283,12 @@ export default function Users({ users, roles, stats }: Props) {
                                     <span className="flex size-12 items-center justify-center rounded-2xl bg-muted text-muted-foreground">
                                         <UsersRound className="size-5" />
                                     </span>
-                                    <h3 className="mt-4 font-medium">No se encontraron usuarios</h3>
+                                    <h3 className="mt-4 font-medium">
+                                        No se encontraron usuarios
+                                    </h3>
                                     <p className="mt-1 text-sm text-muted-foreground">
-                                        Prueba con otro término o crea una cuenta nueva.
+                                        Prueba con otro término o crea una
+                                        cuenta nueva.
                                     </p>
                                 </div>
                             )}

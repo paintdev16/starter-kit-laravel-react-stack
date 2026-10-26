@@ -61,7 +61,7 @@ test('failed login does not alert super admins', function () {
     expect($admin->notifications()->count())->toBe(0);
 });
 
-test('login alert data is shared only with super admins', function () {
+test('login alert is available in the super admin notification center', function () {
     ApplicationSetting::query()->create(['key' => 'reverb_enabled', 'value' => '0']);
     Role::create(['name' => 'super-admin', 'guard_name' => 'web']);
     $admin = User::factory()->create();
@@ -77,14 +77,18 @@ test('login alert data is shared only with super admins', function () {
         ->get(route('dashboard'))
         ->assertInertia(fn (Assert $page) => $page
             ->component('dashboard')
-            ->has('loginAlerts', 1)
-            ->where('loginAlerts.0.title', 'Nuevo inicio de sesión')
+            ->where('auth.unreadNotifications', 1)
         );
+
+    $this->actingAs($admin)
+        ->get(route('notifications.feed'))
+        ->assertOk()
+        ->assertJsonPath('data.0.data.title', 'Nuevo inicio de sesión');
 
     $this->actingAs($user)
         ->get(route('dashboard'))
         ->assertInertia(fn (Assert $page) => $page
             ->component('dashboard')
-            ->where('loginAlerts', [])
+            ->where('auth.unreadNotifications', 0)
         );
 });

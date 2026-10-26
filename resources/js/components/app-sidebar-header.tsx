@@ -2,6 +2,7 @@ import { Breadcrumbs } from '@/components/breadcrumbs';
 import { AppearanceDropdown } from '@/components/appearance-dropdown';
 import AppearanceToggleTab from '@/components/appearance-tabs';
 import { NavUser } from '@/components/nav-user';
+import { NotificationCenter } from '@/components/notification-center';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import type { BreadcrumbItem as BreadcrumbItemType } from '@/types';
 
@@ -21,8 +22,12 @@ export function AppSidebarHeader({
                 <Breadcrumbs breadcrumbs={breadcrumbs} />
             </div>
             <div className="flex shrink-0 items-center gap-2">
-                <AppearanceToggleTab compact className="hidden md:inline-flex" />
+                <AppearanceToggleTab
+                    compact
+                    className="hidden md:inline-flex"
+                />
                 <AppearanceDropdown placement="navbar" className="md:hidden" />
+                <NotificationCenter />
                 <NavUser />
             </div>
         </header>

@@ -30,13 +30,18 @@ export default function VerifyEmail({ status }: Props) {
                             {linkSent ? (
                                 <Check className="size-7" strokeWidth={2.5} />
                             ) : (
-                                <MailCheck className="size-7" strokeWidth={1.8} />
+                                <MailCheck
+                                    className="size-7"
+                                    strokeWidth={1.8}
+                                />
                             )}
                         </div>
 
                         <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-primary/15 bg-primary/5 px-3 py-1 text-xs font-medium text-primary">
                             <span className="size-1.5 rounded-full bg-primary" />
-                            {linkSent ? 'ENLACE ENVIADO' : 'VERIFICACIÓN PENDIENTE'}
+                            {linkSent
+                                ? 'ENLACE ENVIADO'
+                                : 'VERIFICACIÓN PENDIENTE'}
                         </div>
 
                         <p className="max-w-sm text-sm leading-6 text-muted-foreground">
@@ -66,7 +71,8 @@ export default function VerifyEmail({ status }: Props) {
                                 2
                             </span>
                             <span className="text-sm leading-5 text-muted-foreground">
-                                Pulsa el botón de verificación para activar tu cuenta.
+                                Pulsa el botón de verificación para activar tu
+                                cuenta.
                             </span>
                         </div>
                     </div>
@@ -80,8 +86,12 @@ export default function VerifyEmail({ status }: Props) {
                             disabled={processing}
                         >
                             {processing ? <Spinner /> : null}
-                            {processing ? 'Enviando enlace…' : 'Reenviar enlace de verificación'}
-                            {!processing && <ArrowRight data-icon="inline-end" />}
+                            {processing
+                                ? 'Enviando enlace…'
+                                : 'Reenviar enlace de verificación'}
+                            {!processing && (
+                                <ArrowRight data-icon="inline-end" />
+                            )}
                         </Button>
                     )}
                 </Form>
@@ -89,7 +99,8 @@ export default function VerifyEmail({ status }: Props) {
                 <div className="flex items-start gap-3 rounded-xl border border-border/70 bg-muted/30 p-3.5 text-sm text-muted-foreground">
                     <CircleHelp className="mt-0.5 size-4 shrink-0 text-muted-foreground/80" />
                     <p className="leading-5">
-                        ¿No encuentras el mensaje? Revisa la carpeta de spam y asegúrate de que el correo sea correcto.
+                        ¿No encuentras el mensaje? Revisa la carpeta de spam y
+                        asegúrate de que el correo sea correcto.
                     </p>
                 </div>
 
@@ -107,7 +118,7 @@ export default function VerifyEmail({ status }: Props) {
     );
 }
 
-VerifyEmail.layout = {
+VerifyEmail.layout = ({ name }: { name: string }) => ({
     title: 'Confirma tu correo',
-    description: 'Un último paso para proteger tu cuenta y empezar a usar Paint.',
-};
+    description: `Un último paso para proteger tu cuenta y empezar a usar ${name}.`,
+});

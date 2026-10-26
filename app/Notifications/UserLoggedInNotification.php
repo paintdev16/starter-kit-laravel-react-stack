@@ -38,6 +38,7 @@ class UserLoggedInNotification extends Notification
 
     public function toBroadcast(object $notifiable): BroadcastMessage
     {
-        return new BroadcastMessage($this->toDatabase($notifiable));
+        return (new BroadcastMessage($this->toDatabase($notifiable)))
+            ->onConnection('sync');
     }
 }

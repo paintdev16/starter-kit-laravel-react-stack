@@ -14,10 +14,5 @@ export default function Dashboard() {
 }
 
 Dashboard.layout = {
-    breadcrumbs: [
-        {
-            title: 'Panel de control',
-            href: dashboard(),
-        },
-    ],
+    breadcrumbs: [{ title: 'Panel de control', href: dashboard() }],
 };

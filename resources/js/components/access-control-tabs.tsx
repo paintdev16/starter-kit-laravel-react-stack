@@ -1,25 +1,22 @@
 import { Link, usePage } from '@inertiajs/react';
-import { KeyRound, LogIn, ShieldCheck, UsersRound } from 'lucide-react';
+import { KeyRound, ShieldCheck, UsersRound } from 'lucide-react';
 import { index as accessControl } from '@/routes/access-control';
 import { index as accessControlRoles } from '@/routes/access-control/roles';
 import { index as permissionsIndex } from '@/routes/access-control/permissions';
 import { index as usersIndex } from '@/routes/access-control/users';
-import { index as socialLoginIndex } from '@/routes/access-control/social-login';
 import type { Auth } from '@/types';
 
-type Section = 'roles' | 'permissions' | 'users' | 'social-login';
+type Section = 'roles' | 'permissions' | 'users';
 
 const tabs: { id: Section; label: string; icon: typeof ShieldCheck }[] = [
     { id: 'users', label: 'Usuarios', icon: UsersRound },
     { id: 'roles', label: 'Roles', icon: ShieldCheck },
     { id: 'permissions', label: 'Permisos', icon: KeyRound },
-    { id: 'social-login', label: 'Inicio social', icon: LogIn },
 ];
 
 export function AccessControlTabs({ active }: { active: Section }) {
     const { auth } = usePage<{ auth: Auth }>().props;
     const visibleTabs = tabs.filter((tab) => {
-        if (tab.id === 'social-login') return auth.roles.includes('super-admin');
         if (tab.id === 'users') return auth.can.viewUsers;
 
         return auth.can.viewAccessControl;
@@ -36,7 +33,6 @@ export function AccessControlTabs({ active }: { active: Section }) {
                     roles: accessControlRoles(),
                     permissions: permissionsIndex(),
                     users: accessControl(),
-                    'social-login': socialLoginIndex(),
                 }[tab.id];
 
                 return (

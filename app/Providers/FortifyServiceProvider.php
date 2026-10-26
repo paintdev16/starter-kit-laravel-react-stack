@@ -5,11 +5,14 @@ namespace App\Providers;
 use App\Actions\Fortify\CreateNewUser;
 use App\Actions\Fortify\ResetUserPassword;
 use App\Models\SocialLoginProvider;
+use App\Models\User;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Str;
+use Illuminate\Support\Timebox;
 use Illuminate\Validation\Rules\Password;
 use Inertia\Inertia;
 use Laravel\Fortify\Features;
@@ -42,6 +45,24 @@ class FortifyServiceProvider extends ServiceProvider
     {
         Fortify::resetUserPasswordsUsing(ResetUserPassword::class);
         Fortify::createUsersUsing(CreateNewUser::class);
+        Fortify::authenticateUsing(function (Request $request): ?User {
+            $credentials = $request->only(Fortify::username(), 'password');
+            $provider = Auth::guard(config('fortify.guard'))->getProvider();
+
+            return (new Timebox)->call(function () use ($credentials, $provider): ?User {
+                $user = $provider->retrieveByCredentials($credentials);
+
+                if (! $user || ! $provider->validateCredentials($user, $credentials) || ! $user->is_active) {
+                    return null;
+                }
+
+                if (config('hashing.rehash_on_login', true) && method_exists($provider, 'rehashPasswordIfRequired')) {
+                    $provider->rehashPasswordIfRequired($user, $credentials);
+                }
+
+                return $user;
+            }, 200000);
+        });
     }
 
     /**

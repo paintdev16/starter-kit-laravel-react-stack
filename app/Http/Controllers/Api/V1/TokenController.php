@@ -23,7 +23,7 @@ class TokenController extends Controller
 
         $user = User::query()->where('email', $credentials['email'])->first();
 
-        if ($user === null || ! Hash::check($credentials['password'], $user->password)) {
+        if ($user === null || ! $user->is_active || ! Hash::check($credentials['password'], $user->password)) {
             throw ValidationException::withMessages(['email' => ['Las credenciales no son válidas.']]);
         }
 

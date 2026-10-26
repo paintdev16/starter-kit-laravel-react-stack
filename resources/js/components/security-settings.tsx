@@ -3,6 +3,12 @@ import { KeyRound, LockKeyhole, ShieldCheck } from 'lucide-react';
 import { useRef, useState } from 'react';
 import SecurityController from '@/actions/App/Http/Controllers/Web/Settings/SecurityController';
 import InputError from '@/components/input-error';
+import ManageApiTokens, {
+    type ApiTokensProps,
+} from '@/components/manage-api-tokens';
+import ManageBrowserSessions, {
+    type BrowserSessionsProps,
+} from '@/components/manage-browser-sessions';
 import ManagePasskeys, {
     type Props as ManagePasskeysProps,
 } from '@/components/manage-passkeys';
@@ -34,6 +40,8 @@ import { Label } from '@/components/ui/label';
 export type SecuritySettingsProps = {
     passwordRules: string;
 } & ManagePasskeysProps &
+    BrowserSessionsProps &
+    ApiTokensProps &
     ManageTwoFactorProps;
 
 export default function SecuritySettings(props: SecuritySettingsProps) {
@@ -42,7 +50,7 @@ export default function SecuritySettings(props: SecuritySettingsProps) {
     const passwordInput = useRef<HTMLInputElement>(null);
 
     return (
-        <section id="security" className="space-y-5 scroll-mt-24">
+        <section id="security" className="scroll-mt-24 space-y-5">
             <header className="flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
                 <div className="space-y-1.5">
                     <div className="inline-flex items-center gap-1.5 text-xs font-semibold tracking-[0.16em] text-primary uppercase">
@@ -53,8 +61,9 @@ export default function SecuritySettings(props: SecuritySettingsProps) {
                         Protege tu cuenta
                     </h2>
                     <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
-                        Administra tu contraseña, la autenticación en dos pasos
-                        y los métodos de acceso sin contraseña.
+                        Administra tu contraseña, la autenticación en dos pasos,
+                        los métodos de acceso sin contraseña y tus sesiones
+                        activas.
                     </p>
                 </div>
                 <span className="inline-flex w-fit items-center gap-2 rounded-full bg-emerald-500/10 px-3 py-1.5 text-xs font-medium text-emerald-700 dark:text-emerald-300">
@@ -108,7 +117,9 @@ export default function SecuritySettings(props: SecuritySettingsProps) {
                             </DialogTrigger>
                             <DialogContent className="sm:max-w-md">
                                 <DialogHeader>
-                                    <DialogTitle>Cambiar contraseña</DialogTitle>
+                                    <DialogTitle>
+                                        Cambiar contraseña
+                                    </DialogTitle>
                                     <DialogDescription>
                                         Confirma tu contraseña actual y elige
                                         una nueva que sea segura.
@@ -137,7 +148,11 @@ export default function SecuritySettings(props: SecuritySettingsProps) {
                                     }}
                                     className="space-y-4"
                                 >
-                                    {({ errors, processing, resetAndClearErrors }) => (
+                                    {({
+                                        errors,
+                                        processing,
+                                        resetAndClearErrors,
+                                    }) => (
                                         <>
                                             <div className="grid gap-2">
                                                 <Label htmlFor="current_password">
@@ -241,6 +256,24 @@ export default function SecuritySettings(props: SecuritySettingsProps) {
                     <ManagePasskeys
                         canManagePasskeys={props.canManagePasskeys}
                         passkeys={props.passkeys}
+                    />
+                </div>
+                <div className="lg:col-span-2">
+                    <ManageBrowserSessions
+                        canManageSessions={props.canManageSessions}
+                        browserSessions={props.browserSessions}
+                        canConfirmWithPasskey={Boolean(
+                            props.canManagePasskeys && props.passkeys?.length,
+                        )}
+                    />
+                </div>
+                <div className="lg:col-span-2">
+                    <ManageApiTokens
+                        apiTokens={props.apiTokens}
+                        sanctumEnabled={props.sanctumEnabled}
+                        canConfirmWithPasskey={Boolean(
+                            props.canManagePasskeys && props.passkeys?.length,
+                        )}
                     />
                 </div>
             </div>
